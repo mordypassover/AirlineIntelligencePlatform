@@ -1,0 +1,16 @@
+.searchbar input {
+  color: var(--ink);
+}
+
+.searchbar input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.hero .searchbar input,
+.hero .searchbar input:focus {
+    color: #102033 !important;
+    -webkit-text-fill-color: #102033 !important;
+    background-color: #ffffff !important;
+    opacity: 1 !important;
+    caret-color: #102033 !important;
+}
