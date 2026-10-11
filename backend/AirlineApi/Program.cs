@@ -20,6 +20,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 builder.Services.AddSingleton<JwtTokenService>();
+builder.Services.AddHostedService<StaticReviewSeedWorker>();
 var app=builder.Build();
 app.Use(async(ctx,next)=>{try{await next();}catch(Exception ex){app.Logger.LogError(ex,"Unhandled API error");ctx.Response.StatusCode=500;await ctx.Response.WriteAsJsonAsync(new{message="An unexpected error occurred"});}});
 app.UseSwagger(); app.UseSwaggerUI(); app.UseCors(); app.UseAuthentication(); app.UseAuthorization();

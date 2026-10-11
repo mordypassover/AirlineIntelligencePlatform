@@ -10,6 +10,14 @@ public class Worker(
 {
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
+        if (!cfg.GetValue("ENABLE_SYNTHETIC_REVIEW_STREAM", false))
+        {
+            log.LogInformation(
+                "Static review seed mode is active; repeated synthetic reviews are disabled");
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            return;
+        }
+
         var texts = new[]
         {
             "Friendly staff and a comfortable seat. Excellent service.",

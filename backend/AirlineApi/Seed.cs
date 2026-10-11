@@ -8,6 +8,7 @@ public static class Seed
         if (await db.Airlines.AnyAsync())
         {
             await EnsureIsraelOrigins(db);
+            await StaticReviewSeeder.EnsureAsync(db);
             return;
         }
 
@@ -82,34 +83,6 @@ public static class Seed
                 });
             }
 
-            for (var r = 0; r < 3; r++)
-            {
-                var review = new Review
-                {
-                    Id = Guid.NewGuid(),
-                    EventId = Guid.NewGuid(),
-                    AirlineId = a.Id,
-                    Rating = r == 2 ? 3 : 5,
-                    ReviewText = r == 2
-                        ? "A delay and slow baggage handling, but helpful staff."
-                        : "Friendly staff, comfortable seat and excellent service.",
-                    CreatedAt = DateTime.UtcNow.AddDays(-r)
-                };
-
-                db.Add(review);
-
-                db.Add(new SentimentResult
-                {
-                    EventId = Guid.NewGuid(),
-                    ReviewId = review.Id,
-                    AirlineId = a.Id,
-                    Sentiment = r == 2 ? "Neutral" : "Positive",
-                    Topics = r == 2
-                        ? "Delays,Baggage,Staff"
-                        : "Staff,Comfort,Service",
-                    CreatedAt = review.CreatedAt
-                });
-            }
         }
 
         var dests = new[]
@@ -197,6 +170,7 @@ public static class Seed
 
         await db.SaveChangesAsync();
         await EnsureIsraelOrigins(db);
+        await StaticReviewSeeder.EnsureAsync(db);
     }
 
     private static async Task EnsureIsraelOrigins(AirlineDbContext db)
