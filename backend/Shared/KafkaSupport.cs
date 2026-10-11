@@ -1,0 +1,3 @@
+using Confluent.Kafka; using System.Text.Json;
+namespace Shared;
+public static class KafkaSupport { public static async Task PublishAsync<T>(string brokers,string topic,T message,CancellationToken ct=default){using var p=new ProducerBuilder<Null,string>(new ProducerConfig{BootstrapServers=brokers,MessageTimeoutMs=10000}).Build();await p.ProduceAsync(topic,new Message<Null,string>{Value=JsonSerializer.Serialize(message)},ct);} public static IConsumer<Ignore,string> Consumer(string brokers,string group)=>new ConsumerBuilder<Ignore,string>(new ConsumerConfig{BootstrapServers=brokers,GroupId=group,AutoOffsetReset=AutoOffsetReset.Earliest,EnableAutoCommit=true}).Build(); }
