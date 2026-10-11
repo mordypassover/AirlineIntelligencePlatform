@@ -1,1 +1,13 @@
-using AnalyticsService;using Microsoft.EntityFrameworkCore;using Shared;var b=Host.CreateApplicationBuilder(args);b.Services.AddDbContext<AirlineDbContext>(o=>o.UseNpgsql(b.Configuration["POSTGRES_CONNECTION_STRING"]));b.Services.AddSingleton<OverallScoreCalculator>();b.Services.AddHostedService<Worker>();b.Build().Run();
+using AnalyticsService;
+using Microsoft.EntityFrameworkCore;
+using Shared;
+
+var b = Host.CreateApplicationBuilder(args);
+
+b.Services.AddDbContext<AirlineDbContext>(
+    o => o.UseNpgsql(b.Configuration["POSTGRES_CONNECTION_STRING"]));
+
+b.Services.AddSingleton<OverallScoreCalculator>();
+b.Services.AddHostedService<Worker>();
+
+b.Build().Run();

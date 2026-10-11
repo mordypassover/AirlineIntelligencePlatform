@@ -1,7 +1,97 @@
-using Microsoft.AspNetCore.Mvc;using Microsoft.EntityFrameworkCore;using Shared;
-[ApiController][Route("api/destinations")]public class DestinationsController(AirlineDbContext db):ControllerBase
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Shared;
+
+[ApiController]
+[Route("api/destinations")]
+public class DestinationsController(AirlineDbContext db) : ControllerBase
 {
- [HttpGet]public Task<List<Destination>> List()=>db.Destinations.OrderBy(d=>d.City).ToListAsync();
- [HttpGet("{id:guid}")]public async Task<IActionResult> One(Guid id)=>await db.Destinations.FindAsync(id) is { } d?Ok(d):NotFound(new{message="Destination not found"});
- [HttpGet("{id:guid}/airlines")]public async Task<IActionResult> Airlines(Guid id,string? origin,DateTime? date){var d=await db.Destinations.FindAsync(id);if(d is null)return NotFound();var selectedOrigin=string.IsNullOrWhiteSpace(origin)?"TLV":origin.ToUpperInvariant();var q=db.Flights.Where(f=>f.Destination==d.Code&&f.Origin==selectedOrigin);var ids=q.Select(f=>f.AirlineId).Distinct();var airlines=await db.Airlines.Include(a=>a.Statistics).Where(a=>ids.Contains(a.Id)).ToListAsync();var rows=new List<object>();var dayStart=date.HasValue?DateTime.SpecifyKind(date.Value.Date,DateTimeKind.Utc):(DateTime?)null;var dayEnd=dayStart?.AddDays(1);foreach(var a in airlines){var fares=db.FlightPrices.Where(p=>p.AirlineId==a.Id&&p.Origin==selectedOrigin&&p.Destination==d.Code);if(dayStart.HasValue)fares=fares.Where(p=>p.TravelDate>=dayStart.Value&&p.TravelDate<dayEnd!.Value);var fare=await fares.OrderBy(p=>p.Price).Select(p=>new{p.Price,p.Currency,p.TravelDate}).FirstOrDefaultAsync();rows.Add(new{airline=ApiView.Airline(a),price=fare?.Price,currency=fare?.Currency??"USD",priceDate=fare?.TravelDate,isEstimated=true,flights=await db.Flights.CountAsync(f=>f.AirlineId==a.Id&&f.Origin==selectedOrigin&&f.Destination==d.Code),co2=await db.EnvironmentalMeasurements.Where(e=>e.AirlineId==a.Id).OrderByDescending(e=>e.MeasuredAt).Select(e=>(decimal?)e.Co2KgPerPassengerKm).FirstOrDefaultAsync()});}return Ok(rows);}
+    [HttpGet]
+    public Task<List<Destination>> List() =>
+        db.Destinations
+            .OrderBy(d => d.City)
+            .ToListAsync();
+
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> One(Guid id) =>
+        await db.Destinations.FindAsync(id) is { } d
+            ? Ok(d)
+            : NotFound(new { message = "Destination not found" });
+
+    [HttpGet("{id:guid}/airlines")]
+    public async Task<IActionResult> Airlines(Guid id, string? origin, DateTime? date)
+    {
+        var d = await db.Destinations.FindAsync(id);
+
+        if (d is null)
+            return NotFound();
+
+        var selectedOrigin = string.IsNullOrWhiteSpace(origin)
+            ? "TLV"
+            : origin.ToUpperInvariant();
+
+        var q = db.Flights
+            .Where(f => f.Destination == d.Code && f.Origin == selectedOrigin);
+
+        var ids = q.Select(f => f.AirlineId).Distinct();
+
+        var airlines = await db.Airlines
+            .Include(a => a.Statistics)
+            .Where(a => ids.Contains(a.Id))
+            .ToListAsync();
+
+        var rows = new List<object>();
+
+        var dayStart = date.HasValue
+            ? DateTime.SpecifyKind(date.Value.Date, DateTimeKind.Utc)
+            : (DateTime?)null;
+
+        var dayEnd = dayStart?.AddDays(1);
+
+        foreach (var a in airlines)
+        {
+            var fares = db.FlightPrices
+                .Where(p =>
+                    p.AirlineId == a.Id &&
+                    p.Origin == selectedOrigin &&
+                    p.Destination == d.Code);
+
+            if (dayStart.HasValue)
+            {
+                fares = fares.Where(p =>
+                    p.TravelDate >= dayStart.Value &&
+                    p.TravelDate < dayEnd!.Value);
+            }
+
+            var fare = await fares
+                .OrderBy(p => p.Price)
+                .Select(p => new
+                {
+                    p.Price,
+                    p.Currency,
+                    p.TravelDate
+                })
+                .FirstOrDefaultAsync();
+
+            rows.Add(new
+            {
+                airline = ApiView.Airline(a),
+                price = fare?.Price,
+                currency = fare?.Currency ?? "USD",
+                priceDate = fare?.TravelDate,
+                isEstimated = true,
+                flights = await db.Flights.CountAsync(f =>
+                    f.AirlineId == a.Id &&
+                    f.Origin == selectedOrigin &&
+                    f.Destination == d.Code),
+                co2 = await db.EnvironmentalMeasurements
+                    .Where(e => e.AirlineId == a.Id)
+                    .OrderByDescending(e => e.MeasuredAt)
+                    .Select(e => (decimal?)e.Co2KgPerPassengerKm)
+                    .FirstOrDefaultAsync()
+            });
+        }
+
+        return Ok(rows);
+    }
 }

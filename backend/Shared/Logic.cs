@@ -1,5 +1,65 @@
 namespace Shared;
-public record ScoreInput(decimal Passenger,decimal Price,decimal Environment,decimal Availability);
-public class OverallScoreCalculator(decimal passengerWeight=.40m,decimal priceWeight=.25m,decimal environmentWeight=.20m,decimal availabilityWeight=.15m){ public decimal Calculate(ScoreInput x)=>Math.Round(x.Passenger*passengerWeight+x.Price*priceWeight+x.Environment*environmentWeight+x.Availability*availabilityWeight,1); }
-public record SentimentAnalysis(string Sentiment,string[] Topics);
-public class SentimentAnalyzer { static readonly string[] Positive=["friendly","comfortable","excellent","helpful","good","smooth","clean","great"]; static readonly string[] Negative=["delay","late","rude","lost","poor","bad","cancelled","baggage"]; public SentimentAnalysis Analyze(string text){var s=text.ToLowerInvariant();var p=Positive.Count(s.Contains);var n=Negative.Count(s.Contains);var topics=new List<string>();if(s.Contains("staff")||s.Contains("friendly")||s.Contains("rude"))topics.Add("Staff");if(s.Contains("seat")||s.Contains("comfortable"))topics.Add("Comfort");if(s.Contains("delay")||s.Contains("late"))topics.Add("Delays");if(s.Contains("baggage")||s.Contains("lost"))topics.Add("Baggage");if(topics.Count==0)topics.Add("Service");return new(p>n?"Positive":n>p?"Negative":"Neutral",[..topics]);} }
+
+public record ScoreInput(
+    decimal Passenger,
+    decimal Price,
+    decimal Environment,
+    decimal Availability);
+
+public class OverallScoreCalculator(
+    decimal passengerWeight = .40m,
+    decimal priceWeight = .25m,
+    decimal environmentWeight = .20m,
+    decimal availabilityWeight = .15m)
+{
+    public decimal Calculate(ScoreInput x) =>
+        Math.Round(
+            x.Passenger * passengerWeight +
+            x.Price * priceWeight +
+            x.Environment * environmentWeight +
+            x.Availability * availabilityWeight,
+            1);
+}
+
+public record SentimentAnalysis(string Sentiment, string[] Topics);
+
+public class SentimentAnalyzer
+{
+    static readonly string[] Positive =
+    [
+        "friendly", "comfortable", "excellent", "helpful",
+        "good", "smooth", "clean", "great"
+    ];
+
+    static readonly string[] Negative =
+    [
+        "delay", "late", "rude", "lost",
+        "poor", "bad", "cancelled", "baggage"
+    ];
+
+    public SentimentAnalysis Analyze(string text)
+    {
+        var s = text.ToLowerInvariant();
+        var p = Positive.Count(s.Contains);
+        var n = Negative.Count(s.Contains);
+
+        var topics = new List<string>();
+
+        if (s.Contains("staff") || s.Contains("friendly") || s.Contains("rude"))
+            topics.Add("Staff");
+
+        if (s.Contains("seat") || s.Contains("comfortable"))
+            topics.Add("Comfort");
+
+        if (s.Contains("delay") || s.Contains("late"))
+            topics.Add("Delays");
+
+        if (s.Contains("baggage") || s.Contains("lost"))
+            topics.Add("Baggage");
+
+        if (topics.Count == 0)
+            topics.Add("Service");
+
+        return new(p > n ? "Positive" : n > p ? "Negative" : "Neutral", [.. topics]);
+    }
+}

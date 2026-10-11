@@ -1,2 +1,18 @@
-using Microsoft.EntityFrameworkCore;using FlightCollector;using Shared;
-var b=Host.CreateApplicationBuilder(args);b.Services.AddDbContext<AirlineDbContext>(o=>o.UseNpgsql(b.Configuration["POSTGRES_CONNECTION_STRING"]));b.Services.AddHttpClient("iaa",c=>{c.Timeout=TimeSpan.FromSeconds(30);c.DefaultRequestHeaders.UserAgent.ParseAdd("AirScope/1.0");});b.Services.AddHostedService<Worker>();b.Build().Run();
+using Microsoft.EntityFrameworkCore;
+using FlightCollector;
+using Shared;
+
+var b = Host.CreateApplicationBuilder(args);
+
+b.Services.AddDbContext<AirlineDbContext>(
+    o => o.UseNpgsql(b.Configuration["POSTGRES_CONNECTION_STRING"]));
+
+b.Services.AddHttpClient("iaa", c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(30);
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("AirScope/1.0");
+});
+
+b.Services.AddHostedService<Worker>();
+
+b.Build().Run();
