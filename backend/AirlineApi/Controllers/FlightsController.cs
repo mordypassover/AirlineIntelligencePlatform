@@ -1,6 +1,137 @@
-using Microsoft.AspNetCore.Mvc;using Microsoft.EntityFrameworkCore;using Shared;using System.Text.Json;
-[ApiController][Route("api/flights")]public class FlightsController(AirlineDbContext db):ControllerBase
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Shared;
+using System.Text.Json;
+
+[ApiController]
+[Route("api/flights")]
+public class FlightsController(AirlineDbContext db) : ControllerBase
 {
- [HttpGet("israel")]public async Task<IActionResult> Israel(string? direction,string? status,int limit=100){var q=db.Flights.Include(f=>f.Airline).Where(f=>f.Origin=="TLV"||f.Destination=="TLV");if(direction=="arrivals")q=q.Where(f=>f.IsArrival);if(direction=="departures")q=q.Where(f=>!f.IsArrival);if(!string.IsNullOrWhiteSpace(status))q=q.Where(f=>f.Status.ToLower().Contains(status.ToLower()));var rows=await q.OrderByDescending(f=>f.CollectedAt).ThenBy(f=>f.IsArrival?f.ArrivalTime:f.DepartureTime).Take(Math.Clamp(limit,1,500)).Select(f=>new{f.Id,f.FlightNumber,airline=f.Airline!.Name,airlineCode=f.Airline.IataCode,f.Origin,f.Destination,scheduledTime=f.IsArrival?f.ArrivalTime:f.DepartureTime,f.Status,f.Terminal,f.IsArrival,f.Source,f.CollectedAt}).ToListAsync();return Ok(new{airport="Ben Gurion Airport (TLV)",source="Israel Airports Authority via data.gov.il",lastUpdated=rows.Select(x=>(DateTime?)x.CollectedAt).FirstOrDefault(),flights=rows});}
- [HttpGet("israel/live")]public async Task<IActionResult> Live(string? direction,int limit=100){var payloads=await db.RawData.Where(x=>x.Topic=="airline.flights"&&x.Processed).OrderByDescending(x=>x.ReceivedAt).Take(1000).Select(x=>x.Payload).ToListAsync();var events=payloads.Select(x=>{try{return JsonSerializer.Deserialize<FlightEvent>(x);}catch{return null;}}).Where(x=>x is not null).Cast<FlightEvent>().GroupBy(x=>x.EventId).Select(x=>x.First()).Where(x=>x.Origin=="TLV"||x.Destination=="TLV");if(direction=="arrivals")events=events.Where(x=>x.IsArrival);if(direction=="departures")events=events.Where(x=>!x.IsArrival);var selected=events.OrderByDescending(x=>x.CollectedAt).ThenBy(x=>x.IsArrival?x.ArrivalTime:x.DepartureTime).Take(Math.Clamp(limit,1,500)).ToList();var ids=selected.Select(x=>x.AirlineId).Distinct().ToList();var names=await db.Airlines.Where(a=>ids.Contains(a.Id)).ToDictionaryAsync(a=>a.Id,a=>new{a.Name,a.IataCode});var rows=selected.Select(x=>new{x.EventId,x.FlightNumber,airline=names.TryGetValue(x.AirlineId,out var a)?a.Name:x.FlightNumber[..Math.Min(2,x.FlightNumber.Length)],airlineCode=names.TryGetValue(x.AirlineId,out var c)?c.IataCode:"",x.Origin,x.Destination,scheduledTime=x.IsArrival?x.ArrivalTime:x.DepartureTime,x.Status,x.Terminal,x.IsArrival,x.Source,x.CollectedAt});return Ok(new{airport="Ben Gurion Airport (TLV)",source="Israel Airports Authority via data.gov.il",lastUpdated=selected.Select(x=>(DateTime?)x.CollectedAt).FirstOrDefault(),flights=rows});}
+    [HttpGet("israel")]
+    public async Task<IActionResult> Israel(string? direction, string? status, int limit = 100)
+    {
+        var q = db.Flights
+            .Include(f => f.Airline)
+            .Where(f => f.Origin == "TLV" || f.Destination == "TLV");
+
+        if (direction == "arrivals")
+            q = q.Where(f => f.IsArrival);
+
+        if (direction == "departures")
+            q = q.Where(f => !f.IsArrival);
+
+        if (!string.IsNullOrWhiteSpace(status))
+            q = q.Where(f => f.Status.ToLower().Contains(status.ToLower()));
+
+        var rows = await q
+            .OrderByDescending(f => f.CollectedAt)
+            .ThenBy(f => f.IsArrival ? f.ArrivalTime : f.DepartureTime)
+            .Take(Math.Clamp(limit, 1, 500))
+            .Select(f => new
+            {
+                f.Id,
+                f.FlightNumber,
+                airline = f.Airline!.Name,
+                airlineCode = f.Airline.IataCode,
+                f.Origin,
+                f.Destination,
+                scheduledTime = f.IsArrival ? f.ArrivalTime : f.DepartureTime,
+                f.Status,
+                f.Terminal,
+                f.IsArrival,
+                f.Source,
+                f.CollectedAt
+            })
+            .ToListAsync();
+
+        return Ok(new
+        {
+            airport = "Ben Gurion Airport (TLV)",
+            source = "Israel Airports Authority via data.gov.il",
+            lastUpdated = rows.Select(x => (DateTime?)x.CollectedAt).FirstOrDefault(),
+            flights = rows
+        });
+    }
+
+    [HttpGet("israel/live")]
+    public async Task<IActionResult> Live(string? direction, int limit = 100)
+    {
+        var payloads = await db.RawData
+            .Where(x => x.Topic == "airline.flights" && x.Processed)
+            .OrderByDescending(x => x.ReceivedAt)
+            .Take(1000)
+            .Select(x => x.Payload)
+            .ToListAsync();
+
+        var events = payloads
+            .Select(x =>
+            {
+                try
+                {
+                    return JsonSerializer.Deserialize<FlightEvent>(x);
+                }
+                catch
+                {
+                    return null;
+                }
+            })
+            .Where(x => x is not null)
+            .Cast<FlightEvent>()
+            .GroupBy(x => x.EventId)
+            .Select(x => x.First())
+            .Where(x => x.Origin == "TLV" || x.Destination == "TLV");
+
+        if (direction == "arrivals")
+            events = events.Where(x => x.IsArrival);
+
+        if (direction == "departures")
+            events = events.Where(x => !x.IsArrival);
+
+        var selected = events
+            .OrderByDescending(x => x.CollectedAt)
+            .ThenBy(x => x.IsArrival ? x.ArrivalTime : x.DepartureTime)
+            .Take(Math.Clamp(limit, 1, 500))
+            .ToList();
+
+        var ids = selected
+            .Select(x => x.AirlineId)
+            .Distinct()
+            .ToList();
+
+        var names = await db.Airlines
+            .Where(a => ids.Contains(a.Id))
+            .ToDictionaryAsync(a => a.Id, a => new
+            {
+                a.Name,
+                a.IataCode
+            });
+
+        var rows = selected.Select(x => new
+        {
+            x.EventId,
+            x.FlightNumber,
+            airline = names.TryGetValue(x.AirlineId, out var a)
+                ? a.Name
+                : x.FlightNumber[..Math.Min(2, x.FlightNumber.Length)],
+            airlineCode = names.TryGetValue(x.AirlineId, out var c)
+                ? c.IataCode
+                : "",
+            x.Origin,
+            x.Destination,
+            scheduledTime = x.IsArrival ? x.ArrivalTime : x.DepartureTime,
+            x.Status,
+            x.Terminal,
+            x.IsArrival,
+            x.Source,
+            x.CollectedAt
+        });
+
+        return Ok(new
+        {
+            airport = "Ben Gurion Airport (TLV)",
+            source = "Israel Airports Authority via data.gov.il",
+            lastUpdated = selected.Select(x => (DateTime?)x.CollectedAt).FirstOrDefault(),
+            flights = rows
+        });
+    }
 }

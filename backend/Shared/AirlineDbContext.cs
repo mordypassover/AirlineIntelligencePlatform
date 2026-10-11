@@ -1,7 +1,39 @@
 using Microsoft.EntityFrameworkCore;
+
 namespace Shared;
+
 public class AirlineDbContext(DbContextOptions<AirlineDbContext> options) : DbContext(options)
 {
- public DbSet<Airline> Airlines=>Set<Airline>(); public DbSet<User> Users=>Set<User>(); public DbSet<Review> Reviews=>Set<Review>(); public DbSet<SentimentResult> SentimentResults=>Set<SentimentResult>(); public DbSet<FlightPrice> FlightPrices=>Set<FlightPrice>(); public DbSet<Flight> Flights=>Set<Flight>(); public DbSet<Destination> Destinations=>Set<Destination>(); public DbSet<EnvironmentalMeasurement> EnvironmentalMeasurements=>Set<EnvironmentalMeasurement>(); public DbSet<AirlineStatistic> AirlineStatistics=>Set<AirlineStatistic>(); public DbSet<AirlineStatisticHistory> AirlineStatisticsHistory=>Set<AirlineStatisticHistory>(); public DbSet<AdminNote> AdminNotes=>Set<AdminNote>(); public DbSet<SavedAirline> SavedAirlines=>Set<SavedAirline>(); public DbSet<RawData> RawData=>Set<RawData>();
- protected override void OnModelCreating(ModelBuilder b){ b.Entity<User>().HasIndex(x=>x.Email).IsUnique(); b.Entity<Airline>().HasIndex(x=>x.IataCode).IsUnique(); b.Entity<Destination>().HasIndex(x=>x.Code).IsUnique(); b.Entity<SavedAirline>().HasKey(x=>new{x.UserId,x.AirlineId}); b.Entity<Review>().HasIndex(x=>x.EventId).IsUnique(); b.Entity<SentimentResult>().HasIndex(x=>x.EventId).IsUnique(); b.Entity<FlightPrice>().HasIndex(x=>x.EventId).IsUnique(); b.Entity<Flight>().HasIndex(x=>x.EventId).IsUnique(); b.Entity<EnvironmentalMeasurement>().HasIndex(x=>x.EventId).IsUnique(); b.Entity<RawData>().HasIndex(x=>x.EventId).IsUnique(); b.Entity<AirlineStatisticHistory>().HasIndex(x=>new{x.AirlineId,x.SnapshotAt}); }
+    public DbSet<Airline> Airlines => Set<Airline>();
+    public DbSet<User> Users => Set<User>();
+    public DbSet<Review> Reviews => Set<Review>();
+    public DbSet<SentimentResult> SentimentResults => Set<SentimentResult>();
+    public DbSet<FlightPrice> FlightPrices => Set<FlightPrice>();
+    public DbSet<Flight> Flights => Set<Flight>();
+    public DbSet<Destination> Destinations => Set<Destination>();
+    public DbSet<EnvironmentalMeasurement> EnvironmentalMeasurements => Set<EnvironmentalMeasurement>();
+    public DbSet<AirlineStatistic> AirlineStatistics => Set<AirlineStatistic>();
+    public DbSet<AirlineStatisticHistory> AirlineStatisticsHistory => Set<AirlineStatisticHistory>();
+    public DbSet<AdminNote> AdminNotes => Set<AdminNote>();
+    public DbSet<SavedAirline> SavedAirlines => Set<SavedAirline>();
+    public DbSet<RawData> RawData => Set<RawData>();
+
+    protected override void OnModelCreating(ModelBuilder b)
+    {
+        b.Entity<User>().HasIndex(x => x.Email).IsUnique();
+        b.Entity<Airline>().HasIndex(x => x.IataCode).IsUnique();
+        b.Entity<Destination>().HasIndex(x => x.Code).IsUnique();
+
+        b.Entity<SavedAirline>().HasKey(x => new { x.UserId, x.AirlineId });
+
+        b.Entity<Review>().HasIndex(x => x.EventId).IsUnique();
+        b.Entity<SentimentResult>().HasIndex(x => x.EventId).IsUnique();
+        b.Entity<FlightPrice>().HasIndex(x => x.EventId).IsUnique();
+        b.Entity<Flight>().HasIndex(x => x.EventId).IsUnique();
+        b.Entity<EnvironmentalMeasurement>().HasIndex(x => x.EventId).IsUnique();
+        b.Entity<RawData>().HasIndex(x => x.EventId).IsUnique();
+
+        b.Entity<AirlineStatisticHistory>()
+            .HasIndex(x => new { x.AirlineId, x.SnapshotAt });
+    }
 }
