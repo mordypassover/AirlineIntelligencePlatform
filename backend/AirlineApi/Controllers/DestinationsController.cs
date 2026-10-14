@@ -31,7 +31,9 @@ public class DestinationsController(AirlineDbContext db) : ControllerBase
             : origin.ToUpperInvariant();
 
         var q = db.Flights
-            .Where(f => f.Destination == d.Code && f.Origin == selectedOrigin);
+            .Where(f =>
+                (f.Origin == selectedOrigin && f.Destination == d.Code) ||
+                (f.Origin == d.Code && f.Destination == selectedOrigin));
 
         var ids = q.Select(f => f.AirlineId).Distinct();
 
@@ -73,17 +75,21 @@ public class DestinationsController(AirlineDbContext db) : ControllerBase
                 })
                 .FirstOrDefaultAsync();
 
+            var price = fare?.Price ?? EstimateFare(d, a, dayStart);
+
             rows.Add(new
             {
                 airline = ApiView.Airline(a),
-                price = fare?.Price,
+                price,
                 currency = fare?.Currency ?? "USD",
-                priceDate = fare?.TravelDate,
-                isEstimated = true,
+                priceDate = fare?.TravelDate ?? dayStart,
+                isEstimated = fare is null,
                 flights = await db.Flights.CountAsync(f =>
                     f.AirlineId == a.Id &&
-                    f.Origin == selectedOrigin &&
-                    f.Destination == d.Code),
+                    (
+                        (f.Origin == selectedOrigin && f.Destination == d.Code) ||
+                        (f.Origin == d.Code && f.Destination == selectedOrigin)
+                    )),
                 co2 = await db.EnvironmentalMeasurements
                     .Where(e => e.AirlineId == a.Id)
                     .OrderByDescending(e => e.MeasuredAt)
@@ -93,5 +99,39 @@ public class DestinationsController(AirlineDbContext db) : ControllerBase
         }
 
         return Ok(rows);
+    }
+
+    private static decimal EstimateFare(
+        Destination destination,
+        Airline airline,
+        DateTime? travelDate)
+    {
+        var country = destination.Country.Trim().ToUpperInvariant();
+
+        var baseFare = country switch
+        {
+            "ISRAEL" => 65m,
+            "CYPRUS" or "GREECE" => 120m,
+            "AZERBAIJAN" or "GEORGIA" or "UNITED ARAB EMIRATES" => 220m,
+            "ETHIOPIA" or "RUSSIAN FEDERATION" => 320m,
+            "JAPAN" or "THAILAND" or "UNITED STATES" => 720m,
+            _ => 240m
+        };
+
+        var airlineAdjustment = airline.IataCode
+            .ToUpperInvariant()
+            .Sum(c => c) % 5 * 10m;
+
+        var month = travelDate?.Month;
+        var seasonalMultiplier = month switch
+        {
+            7 or 8 => 1.2m,
+            12 => 1.15m,
+            _ => 1m
+        };
+
+        return Math.Round(
+            (baseFare + airlineAdjustment) * seasonalMultiplier / 5m,
+            MidpointRounding.AwayFromZero) * 5m;
     }
 }

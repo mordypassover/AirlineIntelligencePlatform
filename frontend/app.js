@@ -1,4 +1,6 @@
-const API='/api',app=document.querySelector('#app');let airlines=[];const state={token:localStorage.token,user:JSON.parse(localStorage.user||'null')};
+const API='/api',app=document.querySelector('#app');
+let airlines=[];
+const state={token:localStorage.token,user:JSON.parse(localStorage.user||'null')};
 const fmt=n=>n==null?'—':Number(n).toLocaleString(undefined,{maximumFractionDigits:1});const money=(n,currency='USD')=>n==null?'—':new Intl.NumberFormat(undefined,{style:'currency',currency,maximumFractionDigits:0}).format(Number(n));
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function auth(){document.querySelector('#profileLink').hidden=!state.user;document.querySelector('#adminLink').hidden=state.user?.role!=='ADMIN';const a=document.querySelector('#authLink');a.textContent=state.user?`Sign out · ${state.user.displayName}`:'Sign in';a.href=state.user?'#logout':'/login'}auth();
