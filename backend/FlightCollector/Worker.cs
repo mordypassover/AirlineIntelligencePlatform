@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Shared;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -12,7 +13,7 @@ public class Worker(
     IHttpClientFactory clients,
     IConfiguration cfg) : BackgroundService
 {
-    const string DefaultUrl =
+    private const string DefaultUrl =
         "https://data.gov.il/api/3/action/datastore_search?resource_id=e83f763b-b7d7-479e-b172-ae981ddc6de5&limit=500";
 
     protected override async Task ExecuteAsync(CancellationToken ct)
@@ -27,6 +28,10 @@ public class Worker(
                     "Published {Count} live Israel flight events from data.gov.il",
                     count);
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                break;
+            }
             catch (Exception ex)
             {
                 log.LogWarning(
@@ -34,16 +39,26 @@ public class Worker(
                     "Israel Airports Authority feed unavailable; seeded data remains available");
             }
 
-            await Task.Delay(
-                TimeSpan.FromSeconds(cfg.GetValue("FLIGHTS_INTERVAL_SECONDS", 900)),
-                ct);
+            try
+            {
+                await Task.Delay(
+                    TimeSpan.FromSeconds(
+                        cfg.GetValue("FLIGHTS_INTERVAL_SECONDS", 900)),
+                    ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                break;
+            }
         }
     }
 
-    async Task<int> CollectLive(CancellationToken ct)
+    private async Task<int> CollectLive(CancellationToken ct)
     {
+        var url = cfg["ISRAEL_FLIGHTS_API_URL"] ?? DefaultUrl;
+
         var json = await clients.CreateClient("iaa")
-            .GetStringAsync(cfg["ISRAEL_FLIGHTS_API_URL"] ?? DefaultUrl, ct);
+            .GetStringAsync(url, ct);
 
         using var doc = JsonDocument.Parse(json);
 
@@ -77,9 +92,9 @@ public class Worker(
             {
                 airline = new Airline
                 {
-                    Name = Text(r, "CHOPERD") is { Length: > 0 } n
-                        ? n
-                        : code,
+                    Name = string.IsNullOrWhiteSpace(Text(r, "CHOPERD"))
+                        ? code
+                        : Text(r, "CHOPERD"),
                     IataCode = code[..Math.Min(3, code.Length)],
                     Country = code is "LY" or "6H" or "IZ" or "2U"
                         ? "Israel"
@@ -87,23 +102,29 @@ public class Worker(
                 };
 
                 db.Airlines.Add(airline);
-                db.AirlineStatistics.Add(new()
-                {
-                    AirlineId = airline.Id
-                });
-
                 airlines[code] = airline;
             }
 
             var scheduled = Date(r, "CHSTOL");
             var actual = Date(r, "CHPTOL");
+
             var arrival = Text(r, "CHAORD")
                 .Equals("A", StringComparison.OrdinalIgnoreCase);
 
-            var other = Text(r, "CHLOC1").ToUpperInvariant();
+            var other = Text(r, "CHLOC1")
+                .Trim()
+                .ToUpperInvariant();
+
             var number = code + Text(r, "CHFLTN").Trim();
 
-            var id = Stable($"iaa|{number}|{scheduled:o}|{arrival}");
+            if (string.IsNullOrWhiteSpace(number))
+                continue;
+
+            var scheduledTime = scheduled ?? actual ?? DateTime.UtcNow;
+            var actualTime = actual ?? scheduled ?? scheduledTime;
+
+            var id = StableGuid(
+                $"iaa|{number}|{scheduledTime:O}|{arrival}");
 
             events.Add(new FlightEvent(
                 id,
@@ -111,8 +132,8 @@ public class Worker(
                 number,
                 arrival ? other : "TLV",
                 arrival ? "TLV" : other,
-                arrival ? scheduled : actual,
-                arrival ? actual : scheduled,
+                arrival ? scheduledTime : actualTime,
+                arrival ? actualTime : scheduledTime,
                 Text(r, "CHRMINE"),
                 Number(r, "CHTERM"),
                 arrival,
@@ -122,18 +143,57 @@ public class Worker(
 
         await db.SaveChangesAsync(ct);
 
-        foreach (var e in events)
+        foreach (var flightEvent in events)
         {
             await KafkaSupport.PublishAsync(
                 cfg["KAFKA_BOOTSTRAP_SERVERS"] ?? "kafka:9092",
                 "airline.flights",
-                e,
+                flightEvent,
                 ct);
         }
 
         return events.Count;
     }
 
-    static string Text(JsonElement e, string n) =>
-        e.TryGetProperty(n, out var v) && v.ValueKind != JsonValueKind.Null
-            ? v.ToString()
+    private static string Text(JsonElement element, string name)
+    {
+        return element.TryGetProperty(name, out var value) &&
+               value.ValueKind is not JsonValueKind.Null
+                   and not JsonValueKind.Undefined
+            ? value.ToString()
+            : string.Empty;
+    }
+
+    private static DateTime? Date(JsonElement element, string name)
+    {
+        var value = Text(element, name);
+
+        return DateTime.TryParse(
+            value,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal |
+            DateTimeStyles.AdjustToUniversal,
+            out var result)
+                ? result
+                : null;
+    }
+
+    private static int? Number(JsonElement element, string name)
+    {
+        var value = Text(element, name);
+
+        return int.TryParse(
+            value,
+            NumberStyles.Integer,
+            CultureInfo.InvariantCulture,
+            out var result)
+                ? result
+                : null;
+    }
+
+    private static Guid StableGuid(string value)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return new Guid(bytes.AsSpan(0, 16));
+    }
+}
